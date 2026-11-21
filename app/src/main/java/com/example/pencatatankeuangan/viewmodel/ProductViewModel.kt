@@ -1,3 +1,4 @@
+
 package com.example.pencatatankeuangan.viewmodel
 
 import androidx.lifecycle.ViewModel
@@ -39,8 +40,7 @@ data class ProductUiState(
 }
 
 class ProductViewModel(
-    private val repository: ProductRepository =
-        ProductRepository()
+    private val repository: ProductRepository = ProductRepository()
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
@@ -98,7 +98,8 @@ class ProductViewModel(
         category: String,
         unit: String,
         stock: Int,
-        note: String
+        note: String,
+        imageUrl: String? = null
     ) {
         viewModelScope.launch {
             try {
@@ -110,7 +111,8 @@ class ProductViewModel(
                         category = category,
                         unit = unit,
                         stock = stock,
-                        note = note
+                        note = note,
+                        imageUrl = imageUrl
                     )
                 )
 
@@ -162,6 +164,7 @@ class ProductViewModel(
         }
     }
 
+    // CLEAR MESSAGE
     fun clearMessage() {
         _uiState.value = _uiState.value.copy(
             message = null

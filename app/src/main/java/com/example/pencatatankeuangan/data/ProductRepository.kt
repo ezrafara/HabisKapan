@@ -1,92 +1,210 @@
+
 package com.example.pencatatankeuangan.data
 
 import com.example.pencatatankeuangan.model.ProductItem
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.IOException
+import java.net.HttpURLConnection
+import java.net.URL
 
 class ProductRepository {
 
-    private val products = mutableListOf(
-        ProductItem(
-            id = 1L,
-            name = "Sabun Mandi Lifebuoy",
-            brand = "Lifebuoy",
-            category = "Perawatan Diri",
-            unit = "ml",
-            stock = 120,
-            note = "Aroma lemon segar"
-        ),
-        ProductItem(
-            id = 2L,
-            name = "Pasta Gigi Pepsodent",
-            brand = "Pepsodent",
-            category = "Perawatan Diri",
-            unit = "gram",
-            stock = 42
-        ),
-        ProductItem(
-            id = 3L,
-            name = "Sampo Pantene",
-            brand = "Pantene",
-            category = "Perawatan Diri",
-            unit = "ml",
-            stock = 210
-        ),
-        ProductItem(
-            id = 4L,
-            name = "Deterjen Rinso",
-            brand = "Rinso",
-            category = "Kebersihan",
-            unit = "gram",
-            stock = 180
-        ),
-        ProductItem(
-            id = 5L,
-            name = "Sabun Cuci Piring",
-            brand = "Sunlight",
-            category = "Dapur",
-            unit = "ml",
-            stock = 25
-        ),
-        ProductItem(
-            id = 6L,
-            name = "Tisu Gulung",
-            brand = "Nice",
-            category = "Kebersihan",
-            unit = "roll",
-            stock = 12
-        )
-    )
+    // READ: Mengambil produk milik user yang login
+    suspend fun getProducts(): List<ProductItem> =
+        withContext(Dispatchers.IO) {
 
-    private var nextId = 7L
+            val userId = requireUserId()
 
-    // READ
-    suspend fun getProducts(): List<ProductItem> {
-        delay(200)
-        return products.toList()
-    }
+            val response = request(
+                method = "GET",
+                path = "/rest/v1/products?select=*&user_id=eq.$userId&order=id.asc"
+            )
 
-    // INSERT
-    suspend fun addProduct(product: ProductItem) {
-        delay(200)
-        products.add(product.copy(id = nextId++))
-    }
+            val jsonArray = JSONArray(response)
 
-    // UPDATE
-    suspend fun updateProduct(product: ProductItem) {
-        delay(200)
+            List(jsonArray.length()) { index ->
+                val item = jsonArray.getJSONObject(index)
 
-        val index = products.indexOfFirst {
-            it.id == product.id
+                ProductItem(
+                    id = item.getLong("id"),
+                    name = item.getString("name"),
+                    brand = item.getString("brand"),
+                    category = item.getString("category"),
+                    unit = item.getString("unit"),
+                    stock = item.getInt("stock"),
+                    note = item.optString("note", ""),
+                    imageUrl = item.optString("image_url")
+                        .takeIf { it.isNotBlank() && it != "null" }
+                )
+            }
         }
 
-        if (index >= 0) {
-            products[index] = product
+    // INSERT: Menambahkan produk
+    suspend fun addProduct(product: ProductItem) =
+        withContext(Dispatchers.IO) {
+
+            val userId = requireUserId()
+
+            val body = JSONObject().apply {
+                put("user_id", userId)
+                put("name", product.name)
+                put("brand", product.brand)
+                put("category", product.category)
+                put("unit", product.unit)
+                put("stock", product.stock)
+                put("note", product.note)
+                put("image_url", product.imageUrl)
+            }
+
+            request(
+                method = "POST",
+                path = "/rest/v1/products",
+                body = body
+            )
         }
+
+    // UPDATE: Mengubah produk
+    suspend fun updateProduct(product: ProductItem) =
+        withContext(Dispatchers.IO) {
+
+            val userId = requireUserId()
+
+            val body = JSONObject().apply {
+                put("name", product.name)
+                put("brand", product.brand)
+                put("category", product.category)
+                put("unit", product.unit)
+                put("stock", product.stock)
+                put("note", product.note)
+                put("image_url", product.imageUrl)
+            }
+
+            request(
+                method = "PATCH",
+                path = "/rest/v1/products?id=eq.${product.id}&user_id=eq.$userId",
+                body = body
+            )
+        }
+
+    // DELETE: Menghapus produk
+    suspend fun deleteProduct(id: Long) =
+        withContext(Dispatchers.IO) {
+
+            val userId = requireUserId()
+
+            request(
+                method = "DELETE",
+                path = "/rest/v1/products?id=eq.$id&user_id=eq.$userId"
+            )
+        }
+
+    // Memastikan user sudah login
+    private fun requireUserId(): String {
+        return SupabaseConfig.userId
+            ?.takeIf { it.isNotBlank() }
+            ?: throw IOException("User belum login.")
     }
 
-    // DELETE
-    suspend fun deleteProduct(id: Long) {
-        delay(200)
-        products.removeAll { it.id == id }
+    // REQUEST KE SUPABASE
+    private fun request(
+        method: String,
+        path: String,
+        body: JSONObject? = null
+    ): String {
+
+        val token = SupabaseConfig.accessToken
+            ?.takeIf { it.isNotBlank() }
+            ?: throw IOException("Session login tidak ditemukan.")
+
+        val connection = URL(
+            "${SupabaseConfig.url}$path"
+        ).openConnection() as HttpURLConnection
+
+        try {
+            connection.requestMethod = method
+            connection.connectTimeout = 15000
+            connection.readTimeout = 15000
+
+            connection.setRequestProperty(
+                "apikey",
+                SupabaseConfig.anonKey
+            )
+
+            connection.setRequestProperty(
+                "Authorization",
+                "Bearer $token"
+            )
+
+            connection.setRequestProperty(
+                "Content-Type",
+                "application/json"
+            )
+
+            connection.setRequestProperty(
+                "Accept",
+                "application/json"
+            )
+
+            connection.setRequestProperty(
+                "Prefer",
+                "return=representation"
+            )
+
+            if (body != null) {
+                connection.doOutput = true
+
+                connection.outputStream.use { output ->
+                    output.write(
+                        body.toString().toByteArray(Charsets.UTF_8)
+                    )
+                }
+            }
+
+            val code = connection.responseCode
+
+            val stream = if (code in 200..299) {
+                connection.inputStream
+            } else {
+                connection.errorStream
+            }
+
+            val responseText = stream
+                ?.bufferedReader()
+                ?.use { it.readText() }
+                .orEmpty()
+
+            if (code !in 200..299) {
+                val errorMessage = try {
+                    val json = JSONObject(responseText)
+
+                    json.optString("message")
+                        .ifBlank {
+                            json.optString("details")
+                        }
+                        .ifBlank {
+                            json.optString("hint")
+                        }
+                        .ifBlank {
+                            json.optString("error")
+                        }
+                } catch (e: Exception) {
+                    responseText
+                }
+
+                throw IOException(
+                    errorMessage.ifBlank {
+                        "Supabase error: $code"
+                    }
+                )
+            }
+
+            return responseText
+
+        } finally {
+            connection.disconnect()
+        }
     }
 }

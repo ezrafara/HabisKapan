@@ -1,3 +1,4 @@
+
 package com.example.pencatatankeuangan.model
 
 data class ProductItem(
@@ -7,7 +8,8 @@ data class ProductItem(
     val category: String,
     val unit: String,
     val stock: Int,
-    val note: String = ""
+    val note: String = "",
+    val imageUrl: String? = null
 ) {
     val availabilityLabel: String
         get() = if (stock <= 20) "Hampir" else "Tersedia"
