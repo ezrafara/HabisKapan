@@ -12,7 +12,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.draw.clip
+import coil.compose.AsyncImage
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -160,15 +166,19 @@ fun ProdukScreen(
                     onBack = {
                         currentPage = ProductPage.LIST.name
                     },
+                    isSaving = state.isSaving,
                     onSave = { name, brand, category,
-                               unit, stock, note ->
+                               unit, stock, note, imageUri ->
 
                         productViewModel.addProduct(
                             name, brand, category,
-                            unit, stock, note
-                        )
-
-                        currentPage = ProductPage.LIST.name
+                            unit, stock, note,
+                            imageUri = imageUri
+                        ) { success ->
+                            if (success) {
+                                currentPage = ProductPage.LIST.name
+                            }
+                        }
                     },
                     modifier = Modifier.padding(padding)
                 )
@@ -182,8 +192,9 @@ fun ProdukScreen(
                         onBack = {
                             currentPage = ProductPage.DETAIL.name
                         },
+                        isSaving = state.isSaving,
                         onSave = { name, brand, category,
-                                   unit, stock, note ->
+                                   unit, stock, note, imageUri ->
 
                             productViewModel.updateProduct(
                                 selectedProduct.copy(
@@ -193,10 +204,13 @@ fun ProdukScreen(
                                     unit = unit,
                                     stock = stock,
                                     note = note
-                                )
-                            )
-
-                            currentPage = ProductPage.DETAIL.name
+                                ),
+                                newImageUri = imageUri
+                            ) { success ->
+                                if (success) {
+                                    currentPage = ProductPage.DETAIL.name
+                                }
+                            }
                         },
                         modifier = Modifier.padding(padding)
                     )
@@ -418,7 +432,8 @@ private fun ProductCard(
             modifier = Modifier.padding(9.dp),
             verticalArrangement = Arrangement.spacedBy(7.dp)
         ) {
-            ProductImagePlaceholder(
+            ProductImage(
+                imageUrl = product.imageUrl,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(105.dp)
@@ -465,7 +480,23 @@ private fun ProductCard(
     }
 }
 
-// Gambar sementara sampai fitur upload foto dibuat
+// Menampilkan foto produk; placeholder jika belum ada / gagal dimuat
+@Composable
+private fun ProductImage(
+    imageUrl: String?,
+    modifier: Modifier = Modifier
+) {
+    if (imageUrl.isNullOrBlank()) {
+        ProductImagePlaceholder(modifier)
+    } else {
+        AsyncImage(
+            model = imageUrl,
+            contentDescription = "Foto produk",
+            contentScale = ContentScale.Crop,
+            modifier = modifier.clip(RoundedCornerShape(12.dp))
+        )
+    }
+}
 
 @Composable
 private fun ProductImagePlaceholder(
@@ -521,8 +552,9 @@ private fun ProductDetail(
             border = BorderStroke(1.dp, BorderColor)
         ) {
             Column(Modifier.padding(12.dp)) {
-                ProductImagePlaceholder(
-                    Modifier
+                ProductImage(
+                    imageUrl = product.imageUrl,
+                    modifier = Modifier
                         .fillMaxWidth()
                         .height(155.dp)
                 )
@@ -673,9 +705,20 @@ private fun ProductForm(
     title: String,
     product: ProductItem?,
     onBack: () -> Unit,
-    onSave: (String, String, String, String, Int, String) -> Unit,
+    isSaving: Boolean,
+    onSave: (String, String, String, String, Int, String, Uri?) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var imageUri by rememberSaveable(product?.id) {
+        mutableStateOf<Uri?>(null)
+    }
+
+    val photoPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) imageUri = uri
+    }
+
     var name by rememberSaveable(product?.id) {
         mutableStateOf(product?.name ?: "")
     }
@@ -717,38 +760,66 @@ private fun ProductForm(
             onBack = onBack
         )
 
-        // PLACEHOLDER FOTO
+        // PILIH FOTO DARI GALERI
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(125.dp)
-                .background(
-                    PageBg,
-                    RoundedCornerShape(15.dp)
-                ),
+                .clip(RoundedCornerShape(15.dp))
+                .background(PageBg)
+                .clickable(enabled = !isSaving) {
+                    photoPicker.launch(
+                        PickVisualMediaRequest(
+                            ActivityResultContracts.PickVisualMedia.ImageOnly
+                        )
+                    )
+                },
             contentAlignment = Alignment.Center
         ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Icon(
-                    Icons.Default.AddPhotoAlternate,
-                    contentDescription = null,
-                    tint = Blue,
-                    modifier = Modifier.size(30.dp)
+            val preview: Any? = imageUri ?: product?.imageUrl
+
+            if (preview != null) {
+                AsyncImage(
+                    model = preview,
+                    contentDescription = "Foto produk",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
                 )
-                Spacer(Modifier.height(8.dp))
+
                 Text(
-                    "Unggah foto produk",
-                    color = Blue,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold
+                    "Ketuk untuk mengganti foto",
+                    color = Color.White,
+                    fontSize = 11.sp,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .background(Color(0x99101B33))
+                        .padding(6.dp),
+                    textAlign = TextAlign.Center
                 )
-                Text(
-                    "JPG atau PNG, maks. 5 MB",
-                    color = Muted,
-                    fontSize = 10.sp
-                )
+            } else {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        Icons.Default.AddPhotoAlternate,
+                        contentDescription = null,
+                        tint = Blue,
+                        modifier = Modifier.size(30.dp)
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Unggah foto produk",
+                        color = Blue,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "JPG, PNG, atau WEBP, maks. 5 MB",
+                        color = Muted,
+                        fontSize = 10.sp
+                    )
+                }
             }
         }
 
@@ -883,11 +954,13 @@ private fun ProductForm(
                             category,
                             unit,
                             parsedStock,
-                            note.trim()
+                            note.trim(),
+                            imageUri
                         )
                     }
                 }
             },
+            enabled = !isSaving,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(54.dp),
@@ -896,18 +969,28 @@ private fun ProductForm(
                 containerColor = Blue
             )
         ) {
-            Icon(
-                Icons.Default.Check,
-                contentDescription = null
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(
-                if (product == null)
-                    "Simpan Data"
-                else
-                    "Simpan Perubahan",
-                fontWeight = FontWeight.Bold
-            )
+            if (isSaving) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = Color.White,
+                    strokeWidth = 2.dp
+                )
+                Spacer(Modifier.width(8.dp))
+                Text("Menyimpan...", fontWeight = FontWeight.Bold)
+            } else {
+                Icon(
+                    Icons.Default.Check,
+                    contentDescription = null
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    if (product == null)
+                        "Simpan Data"
+                    else
+                        "Simpan Perubahan",
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
 
         Spacer(Modifier.height(14.dp))

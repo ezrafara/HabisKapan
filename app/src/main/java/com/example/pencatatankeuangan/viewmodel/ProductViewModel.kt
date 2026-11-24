@@ -1,9 +1,12 @@
 
 package com.example.pencatatankeuangan.viewmodel
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import android.net.Uri
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 
+import com.example.pencatatankeuangan.data.ProductImageRepository
 import com.example.pencatatankeuangan.data.ProductRepository
 import com.example.pencatatankeuangan.model.ProductItem
 
@@ -17,6 +20,7 @@ data class ProductUiState(
     val searchQuery: String = "",
     val selectedCategory: String = "Semua",
     val isLoading: Boolean = false,
+    val isSaving: Boolean = false,
     val message: String? = null
 ) {
     val filteredProducts: List<ProductItem>
@@ -40,8 +44,11 @@ data class ProductUiState(
 }
 
 class ProductViewModel(
-    private val repository: ProductRepository = ProductRepository()
-) : ViewModel() {
+    application: Application
+) : AndroidViewModel(application) {
+
+    private val repository = ProductRepository()
+    private val imageRepository = ProductImageRepository(application)
 
     private val _uiState = MutableStateFlow(
         ProductUiState(isLoading = true)
@@ -91,7 +98,7 @@ class ProductViewModel(
         )
     }
 
-    // INSERT
+    // INSERT (upload foto dulu jika ada, lalu simpan produk)
     fun addProduct(
         name: String,
         brand: String,
@@ -99,10 +106,17 @@ class ProductViewModel(
         unit: String,
         stock: Int,
         note: String,
-        imageUrl: String? = null
+        imageUri: Uri? = null,
+        onResult: (Boolean) -> Unit = {}
     ) {
         viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isSaving = true)
+
             try {
+                val imageUrl = imageUri?.let {
+                    imageRepository.uploadImage(it)
+                }
+
                 repository.addProduct(
                     ProductItem(
                         id = 0L,
@@ -118,30 +132,52 @@ class ProductViewModel(
 
                 _uiState.value = _uiState.value.copy(
                     products = repository.getProducts(),
+                    isSaving = false,
                     message = "Produk berhasil ditambahkan"
                 )
+                onResult(true)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
-                    message = "Gagal menambahkan produk"
+                    isSaving = false,
+                    message = "Gagal menambahkan produk: ${e.message.orEmpty()}"
                 )
+                onResult(false)
             }
         }
     }
 
-    // UPDATE
-    fun updateProduct(product: ProductItem) {
+    // UPDATE (jika ada foto baru, upload dulu lalu ganti image_url)
+    fun updateProduct(
+        product: ProductItem,
+        newImageUri: Uri? = null,
+        onResult: (Boolean) -> Unit = {}
+    ) {
         viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isSaving = true)
+
             try {
-                repository.updateProduct(product)
+                val finalProduct = if (newImageUri != null) {
+                    product.copy(
+                        imageUrl = imageRepository.uploadImage(newImageUri)
+                    )
+                } else {
+                    product
+                }
+
+                repository.updateProduct(finalProduct)
 
                 _uiState.value = _uiState.value.copy(
                     products = repository.getProducts(),
+                    isSaving = false,
                     message = "Perubahan berhasil disimpan"
                 )
+                onResult(true)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
-                    message = "Gagal memperbarui produk"
+                    isSaving = false,
+                    message = "Gagal memperbarui produk: ${e.message.orEmpty()}"
                 )
+                onResult(false)
             }
         }
     }

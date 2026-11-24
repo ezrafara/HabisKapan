@@ -1,14 +1,18 @@
 package com.example.pencatatankeuangan.viewmodel
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.pencatatankeuangan.data.ShoppingRepository
 import com.example.pencatatankeuangan.model.ShoppingItem
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 data class ShoppingUiState(
     val items: List<ShoppingItem> = emptyList(),
     val selectedFilter: String = "Semua",
+    val isLoading: Boolean = false,
     val message: String? = null
 ) {
     val filteredItems: List<ShoppingItem>
@@ -29,70 +33,99 @@ data class ShoppingUiState(
         else purchasedCount.toFloat() / totalCount
 }
 
-class ShoppingViewModel : ViewModel() {
+class ShoppingViewModel(
+    private val repository: ShoppingRepository = ShoppingRepository()
+) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(
-        ShoppingUiState(
-            items = listOf(
-                ShoppingItem(1, "Pasta Gigi", 2, "Tinggi", false, "Ukuran besar"),
-                ShoppingItem(2, "Sabun Mandi", 3, "Sedang", true, "Aroma lavender"),
-                ShoppingItem(3, "Sampo", 1, "Tinggi", false, "Anti ketombe"),
-                ShoppingItem(4, "Detergen", 2, "Rendah", true, "Kemasan refill")
-            )
-        )
-    )
+    private val _uiState = MutableStateFlow(ShoppingUiState(isLoading = true))
 
     val uiState: StateFlow<ShoppingUiState> = _uiState.asStateFlow()
+
+    init {
+        load()
+    }
+
+    // READ
+    fun load() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true)
+
+            try {
+                _uiState.value = _uiState.value.copy(
+                    items = repository.getAll(),
+                    isLoading = false
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    message = "Gagal memuat daftar belanja: ${e.message.orEmpty()}"
+                )
+            }
+        }
+    }
 
     fun setFilter(filter: String) {
         _uiState.value = _uiState.value.copy(selectedFilter = filter)
     }
 
+    // Menjalankan aksi ke Supabase, lalu memuat ulang daftar.
+    private fun mutate(successMessage: String, action: suspend () -> Unit) {
+        viewModelScope.launch {
+            try {
+                action()
+
+                _uiState.value = _uiState.value.copy(
+                    items = repository.getAll(),
+                    message = successMessage
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    message = "Gagal menyimpan: ${e.message.orEmpty()}"
+                )
+            }
+        }
+    }
+
+    // CREATE
     fun addItem(
         productName: String,
         quantity: Int,
         priority: String,
         note: String
     ) {
-        val currentItems = _uiState.value.items
-        val newItem = ShoppingItem(
-            id = (currentItems.maxOfOrNull { it.id } ?: 0) + 1,
-            productName = productName.trim(),
-            quantity = quantity,
-            priority = priority,
-            isPurchased = false,
-            note = note.trim()
-        )
-
-        _uiState.value = _uiState.value.copy(
-            items = currentItems + newItem,
-            message = "Item berhasil ditambahkan"
-        )
+        mutate("Item berhasil ditambahkan") {
+            repository.add(
+                ShoppingItem(
+                    id = 0L,
+                    productName = productName.trim(),
+                    quantity = quantity,
+                    priority = priority,
+                    isPurchased = false,
+                    note = note.trim()
+                )
+            )
+        }
     }
 
     // Produk dari katalog yang sudah ada tidak ditambahkan berulang.
-    // Jika nama produk sudah ada, jumlahnya ditambah satu.
+    // Jika nama produk sudah ada (dan belum dibeli), jumlahnya ditambah.
     fun addItemFromProduct(
         productName: String,
         quantity: Int = 1,
         priority: String = "Sedang",
         note: String = ""
     ) {
-        val currentItems = _uiState.value.items
-        val existingItem = currentItems.firstOrNull {
+        val existingItem = _uiState.value.items.firstOrNull {
             it.productName.trim().equals(productName.trim(), ignoreCase = true) &&
                     !it.isPurchased
         }
 
         if (existingItem != null) {
-            _uiState.value = _uiState.value.copy(
-                items = currentItems.map {
-                    if (it.id == existingItem.id) {
-                        it.copy(quantity = it.quantity + quantity)
-                    } else it
-                },
-                message = "$productName sudah ada. Jumlah diperbarui."
-            )
+            mutate("$productName sudah ada. Jumlah diperbarui.") {
+                repository.update(
+                    existingItem.copy(quantity = existingItem.quantity + quantity)
+                )
+            }
         } else {
             addItem(
                 productName = productName,
@@ -103,32 +136,31 @@ class ShoppingViewModel : ViewModel() {
         }
     }
 
+    // UPDATE
     fun updateItem(item: ShoppingItem) {
-        _uiState.value = _uiState.value.copy(
-            items = _uiState.value.items.map {
-                if (it.id == item.id) item.copy(
+        mutate("Item berhasil diperbarui") {
+            repository.update(
+                item.copy(
                     productName = item.productName.trim(),
                     note = item.note.trim()
-                ) else it
-            },
-            message = "Item berhasil diperbarui"
-        )
+                )
+            )
+        }
     }
 
-    fun togglePurchased(id: Int) {
-        _uiState.value = _uiState.value.copy(
-            items = _uiState.value.items.map {
-                if (it.id == id) it.copy(isPurchased = !it.isPurchased) else it
-            },
-            message = "Status pembelian berhasil diperbarui"
-        )
+    fun togglePurchased(id: Long) {
+        val item = _uiState.value.items.firstOrNull { it.id == id } ?: return
+
+        mutate("Status pembelian berhasil diperbarui") {
+            repository.update(item.copy(isPurchased = !item.isPurchased))
+        }
     }
 
-    fun deleteItem(id: Int) {
-        _uiState.value = _uiState.value.copy(
-            items = _uiState.value.items.filter { it.id != id },
-            message = "Item berhasil dihapus"
-        )
+    // DELETE
+    fun deleteItem(id: Long) {
+        mutate("Item berhasil dihapus") {
+            repository.delete(id)
+        }
     }
 
     fun clearMessage() {

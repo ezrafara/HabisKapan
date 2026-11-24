@@ -2,56 +2,31 @@ package com.example.pencatatankeuangan.data
 
 import com.example.pencatatankeuangan.model.FinanceTransaction
 import com.example.pencatatankeuangan.model.TransactionType
-import kotlinx.coroutines.delay
+import org.json.JSONArray
+import org.json.JSONObject
 
+// Transaksi keuangan disimpan di tabel Supabase "finance_transactions".
+// Saldo awal = satu baris bertipe INITIAL_BALANCE.
 class FinanceRepository {
-
-    private val transactions = mutableListOf(
-
-        FinanceTransaction(
-            id = 1L,
-            title = "Belanja bulanan",
-            type = TransactionType.EXPENSE,
-            category = "Kebutuhan Rumah",
-            amount = 286500L,
-            date = "2026-06-10",
-            note = "Belanja kebutuhan bulanan"
-        ),
-
-        FinanceTransaction(
-            id = 2L,
-            title = "Gaji bulanan",
-            type = TransactionType.INCOME,
-            category = "Gaji",
-            amount = 6500000L,
-            date = "2026-06-01",
-            note = "Gaji bulan Juni"
-        ),
-
-        FinanceTransaction(
-            id = 3L,
-            title = "Perlengkapan mandi",
-            type = TransactionType.EXPENSE,
-            category = "Perawatan Diri",
-            amount = 89700L,
-            date = "2026-06-08",
-            note = ""
-        )
-    )
-
-    private var nextId = 4L
-
-    private var openingBalance = 0L
 
     // =================================
     // MENAMPILKAN SEMUA TRANSAKSI
     // =================================
 
     suspend fun getTransactions(): List<FinanceTransaction> {
+        val userId = SupabaseRest.requireUserId()
 
-        delay(200)
+        val text = SupabaseRest.request(
+            method = "GET",
+            path = "/rest/v1/finance_transactions?select=*&user_id=eq.$userId" +
+                    "&order=trx_date.desc,id.desc"
+        )
 
-        return transactions.toList()
+        val array = JSONArray(text)
+
+        return List(array.length()) { index ->
+            toTransaction(array.getJSONObject(index))
+        }
     }
 
     // =================================
@@ -59,33 +34,37 @@ class FinanceRepository {
     // =================================
 
     suspend fun getOpeningBalance(): Long {
+        val userId = SupabaseRest.requireUserId()
 
-        return openingBalance
+        val text = SupabaseRest.request(
+            method = "GET",
+            path = "/rest/v1/finance_transactions?select=amount" +
+                    "&user_id=eq.$userId&type=eq.INITIAL_BALANCE" +
+                    "&order=id.desc&limit=1"
+        )
+
+        val array = JSONArray(text)
+
+        return if (array.length() == 0) 0L
+        else array.getJSONObject(0).optLong("amount", 0L)
     }
 
     // =================================
     // MENAMBAHKAN TRANSAKSI
     // =================================
 
-    suspend fun addTransaction(
-        transaction: FinanceTransaction
-    ) {
+    suspend fun addTransaction(transaction: FinanceTransaction) {
+        val userId = SupabaseRest.requireUserId()
 
-        delay(200)
-
+        // Hanya boleh ada satu saldo awal
         if (transaction.type == TransactionType.INITIAL_BALANCE) {
-
-            openingBalance = transaction.amount
-
-            transactions.removeAll {
-                it.type == TransactionType.INITIAL_BALANCE
-            }
+            deleteInitialBalances(userId, exceptId = null)
         }
 
-        transactions.add(
-            transaction.copy(
-                id = nextId++
-            )
+        SupabaseRest.request(
+            method = "POST",
+            path = "/rest/v1/finance_transactions",
+            body = toJson(transaction).put("user_id", userId)
         )
     }
 
@@ -93,38 +72,19 @@ class FinanceRepository {
     // MENGUBAH TRANSAKSI
     // =================================
 
-    suspend fun updateTransaction(
-        transaction: FinanceTransaction
-    ) {
+    suspend fun updateTransaction(transaction: FinanceTransaction) {
+        val userId = SupabaseRest.requireUserId()
 
-        delay(200)
-
-        val index = transactions.indexOfFirst {
-            it.id == transaction.id
+        if (transaction.type == TransactionType.INITIAL_BALANCE) {
+            deleteInitialBalances(userId, exceptId = transaction.id)
         }
 
-        if (index != -1) {
-
-            val oldTransaction = transactions[index]
-
-            if (
-                oldTransaction.type == TransactionType.INITIAL_BALANCE ||
-                transaction.type == TransactionType.INITIAL_BALANCE
-            ) {
-
-                openingBalance =
-                    if (
-                        transaction.type ==
-                        TransactionType.INITIAL_BALANCE
-                    ) {
-                        transaction.amount
-                    } else {
-                        0L
-                    }
-            }
-
-            transactions[index] = transaction
-        }
+        SupabaseRest.request(
+            method = "PATCH",
+            path = "/rest/v1/finance_transactions" +
+                    "?id=eq.${transaction.id}&user_id=eq.$userId",
+            body = toJson(transaction)
+        )
     }
 
     // =================================
@@ -132,20 +92,43 @@ class FinanceRepository {
     // =================================
 
     suspend fun deleteTransaction(id: Long) {
+        val userId = SupabaseRest.requireUserId()
 
-        delay(200)
-
-        val transaction = transactions.firstOrNull {
-            it.id == id
-        }
-
-        if (transaction?.type == TransactionType.INITIAL_BALANCE) {
-
-            openingBalance = 0L
-        }
-
-        transactions.removeAll {
-            it.id == id
-        }
+        SupabaseRest.request(
+            method = "DELETE",
+            path = "/rest/v1/finance_transactions?id=eq.$id&user_id=eq.$userId"
+        )
     }
+
+    private suspend fun deleteInitialBalances(
+        userId: String,
+        exceptId: Long?
+    ) {
+        val except = if (exceptId != null) "&id=neq.$exceptId" else ""
+
+        SupabaseRest.request(
+            method = "DELETE",
+            path = "/rest/v1/finance_transactions" +
+                    "?user_id=eq.$userId&type=eq.INITIAL_BALANCE$except"
+        )
+    }
+
+    private fun toJson(t: FinanceTransaction) = JSONObject().apply {
+        put("title", t.title)
+        put("type", t.type.name)
+        put("category", t.category)
+        put("amount", t.amount)
+        put("trx_date", t.date)
+        put("note", t.note)
+    }
+
+    private fun toTransaction(item: JSONObject) = FinanceTransaction(
+        id = item.getLong("id"),
+        title = item.getString("title"),
+        type = TransactionType.valueOf(item.getString("type")),
+        category = item.optString("category", ""),
+        amount = item.optLong("amount", 0L),
+        date = item.optString("trx_date", "").take(10),
+        note = if (item.isNull("note")) "" else item.optString("note")
+    )
 }

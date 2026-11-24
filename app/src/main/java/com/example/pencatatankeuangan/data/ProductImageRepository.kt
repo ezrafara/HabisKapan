@@ -10,6 +10,8 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.UUID
 
+private const val MAX_IMAGE_BYTES = 5L * 1024 * 1024
+
 class ProductImageRepository(
     private val context: Context
 ) {
@@ -36,6 +38,15 @@ class ProductImageRepository(
                 )
             ) {
                 throw IOException("Format gambar harus JPG, PNG, atau WEBP.")
+            }
+
+            val sizeBytes = context.contentResolver
+                .openAssetFileDescriptor(uri, "r")
+                ?.use { it.length }
+                ?: -1L
+
+            if (sizeBytes > MAX_IMAGE_BYTES) {
+                throw IOException("Ukuran gambar maksimal 5 MB.")
             }
 
             val extension = when (mimeType) {

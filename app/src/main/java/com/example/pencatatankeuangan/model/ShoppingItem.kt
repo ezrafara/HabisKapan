@@ -1,7 +1,7 @@
 package com.example.pencatatankeuangan.model
 
 data class ShoppingItem(
-    val id: Int,
+    val id: Long,
     val productName: String,
     val quantity: Int,
     val priority: String,

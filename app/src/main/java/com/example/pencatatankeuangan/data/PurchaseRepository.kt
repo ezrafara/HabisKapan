@@ -2,40 +2,54 @@ package com.example.pencatatankeuangan.data
 
 import com.example.pencatatankeuangan.model.Pembelian
 import com.example.pencatatankeuangan.model.PembelianRequest
+import org.json.JSONArray
+import org.json.JSONObject
 
+// Riwayat pembelian disimpan di tabel Supabase "purchases".
 class PurchaseRepository {
 
-    private val daftarPembelian = mutableListOf<Pembelian>()
-
-    private var nextId = 1L
-
-    // READ: mengambil semua pembelian
+    // READ: mengambil semua pembelian milik user
     suspend fun getAll(): List<Pembelian> {
-        return daftarPembelian.toList()
+        val userId = SupabaseRest.requireUserId()
+
+        val text = SupabaseRest.request(
+            method = "GET",
+            path = "/rest/v1/purchases?select=*&user_id=eq.$userId" +
+                    "&order=purchase_date.desc,id.desc"
+        )
+
+        val array = JSONArray(text)
+
+        return List(array.length()) { index ->
+            toPembelian(array.getJSONObject(index))
+        }
     }
 
     // READ: mengambil detail berdasarkan ID
     suspend fun getById(id: Long): Pembelian? {
-        return daftarPembelian.find {
-            it.id == id
-        }
+        val userId = SupabaseRest.requireUserId()
+
+        val text = SupabaseRest.request(
+            method = "GET",
+            path = "/rest/v1/purchases?select=*&id=eq.$id&user_id=eq.$userId"
+        )
+
+        val array = JSONArray(text)
+
+        return if (array.length() == 0) null
+        else toPembelian(array.getJSONObject(0))
     }
 
     // CREATE: menambahkan pembelian
     suspend fun add(request: PembelianRequest) {
-        val pembelian = Pembelian(
-            id = nextId++,
-            namaProduk = request.namaProduk,
-            merek = request.merek,
-            kategori = request.kategori,
-            toko = request.toko,
-            tanggal = request.tanggal,
-            jumlah = request.jumlah,
-            hargaPerItem = request.hargaPerItem,
-            imageUrl = request.imageUrl
-        )
+        val body = toJson(request)
+            .put("user_id", SupabaseRest.requireUserId())
 
-        daftarPembelian.add(pembelian)
+        SupabaseRest.request(
+            method = "POST",
+            path = "/rest/v1/purchases",
+            body = body
+        )
     }
 
     // UPDATE: mengubah pembelian
@@ -43,29 +57,48 @@ class PurchaseRepository {
         id: Long,
         request: PembelianRequest
     ) {
-        val index = daftarPembelian.indexOfFirst {
-            it.id == id
-        }
+        val userId = SupabaseRest.requireUserId()
 
-        if (index != -1) {
-            daftarPembelian[index] = Pembelian(
-                id = id,
-                namaProduk = request.namaProduk,
-                merek = request.merek,
-                kategori = request.kategori,
-                toko = request.toko,
-                tanggal = request.tanggal,
-                jumlah = request.jumlah,
-                hargaPerItem = request.hargaPerItem,
-                imageUrl = request.imageUrl
-            )
-        }
+        SupabaseRest.request(
+            method = "PATCH",
+            path = "/rest/v1/purchases?id=eq.$id&user_id=eq.$userId",
+            body = toJson(request)
+        )
     }
 
     // DELETE: menghapus pembelian
     suspend fun delete(id: Long) {
-        daftarPembelian.removeAll {
-            it.id == id
-        }
+        val userId = SupabaseRest.requireUserId()
+
+        SupabaseRest.request(
+            method = "DELETE",
+            path = "/rest/v1/purchases?id=eq.$id&user_id=eq.$userId"
+        )
     }
+
+    private fun toJson(request: PembelianRequest) = JSONObject().apply {
+        put("product_name", request.namaProduk)
+        put("brand", request.merek ?: JSONObject.NULL)
+        put("category", request.kategori ?: JSONObject.NULL)
+        put("store", request.toko)
+        put("purchase_date", request.tanggal)
+        put("quantity", request.jumlah)
+        put("price_per_item", request.hargaPerItem)
+        put("image_url", request.imageUrl ?: JSONObject.NULL)
+    }
+
+    private fun JSONObject.stringOrNull(key: String): String? =
+        if (isNull(key)) null else optString(key).takeIf { it.isNotBlank() }
+
+    private fun toPembelian(item: JSONObject) = Pembelian(
+        id = item.getLong("id"),
+        namaProduk = item.getString("product_name"),
+        merek = item.stringOrNull("brand"),
+        kategori = item.stringOrNull("category"),
+        toko = item.optString("store", ""),
+        tanggal = item.optString("purchase_date", "").take(10),
+        jumlah = item.optInt("quantity", 1),
+        hargaPerItem = item.optLong("price_per_item", 0L),
+        imageUrl = item.stringOrNull("image_url")
+    )
 }
