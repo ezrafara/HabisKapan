@@ -24,6 +24,8 @@ import androidx.compose.ui.unit.sp
 import com.example.pencatatankeuangan.model.Pembelian
 import com.example.pencatatankeuangan.model.formatTanggal
 import com.example.pencatatankeuangan.model.formatRupiah
+import com.example.pencatatankeuangan.ui.theme.AppDialog
+import androidx.compose.material.icons.filled.Delete
 
 @Composable
 fun DetailPembelianScreen(
@@ -263,7 +265,7 @@ fun DetailPembelianScreen(
                         modifier = Modifier
                             .weight(1.5f)
                             .height(52.dp),
-                        shape = RoundedCornerShape(14.dp),
+                        shape = RoundedCornerShape(12.dp),
                         border = BorderStroke(1.dp, BluePrimary),
                         colors = ButtonDefaults.outlinedButtonColors(
                             containerColor = Color.White,
@@ -290,7 +292,7 @@ fun DetailPembelianScreen(
                         modifier = Modifier
                             .weight(1f)
                             .height(52.dp),
-                        shape = RoundedCornerShape(14.dp),
+                        shape = RoundedCornerShape(12.dp),
                         border = BorderStroke(1.dp, RedDanger),
                         colors = ButtonDefaults.outlinedButtonColors(
                             containerColor = Color.White,
@@ -318,44 +320,17 @@ fun DetailPembelianScreen(
 
     // DIALOG KONFIRMASI HAPUS
     if (showDialog) {
-        AlertDialog(
-            onDismissRequest = {
+        AppDialog(
+            title = "Hapus pembelian?",
+            message = "Data yang dihapus tidak bisa dikembalikan.",
+            icon = Icons.Default.Delete,
+            destructive = true,
+            confirmText = "Ya, Hapus",
+            onConfirm = {
                 showDialog = false
+                onDelete()
             },
-            title = {
-                Text(
-                    text = "Hapus pembelian?",
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Text(
-                    text = "Data yang dihapus tidak bisa dikembalikan."
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showDialog = false
-                        onDelete()
-                    }
-                ) {
-                    Text(
-                        text = "Hapus",
-                        color = RedDanger,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        showDialog = false
-                    }
-                ) {
-                    Text("Batal")
-                }
-            }
+            onDismiss = { showDialog = false }
         )
     }
 }

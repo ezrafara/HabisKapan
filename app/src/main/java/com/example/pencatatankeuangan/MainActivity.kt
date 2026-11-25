@@ -26,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CalendarMonth
 
 import com.example.pencatatankeuangan.data.SessionDataStore
+import com.example.pencatatankeuangan.data.SupabaseConfig
 import com.example.pencatatankeuangan.data.SupabaseAuthRepository
 
 import com.example.pencatatankeuangan.model.ActiveProduct
@@ -56,6 +57,7 @@ import com.example.pencatatankeuangan.viewmodel.ShoppingViewModel
 import com.example.pencatatankeuangan.viewmodel.UsageViewModel
 import com.example.pencatatankeuangan.viewmodel.PurchaseViewModel
 import com.example.pencatatankeuangan.viewmodel.ProductViewModel
+import com.example.pencatatankeuangan.viewmodel.ProfileViewModel
 import com.example.pencatatankeuangan.viewmodel.FinanceViewModel
 
 class MainActivity : ComponentActivity() {
@@ -185,15 +187,22 @@ class MainActivity : ComponentActivity() {
                     // VIEWMODEL
                     // ==========================================
 
-                    val purchaseViewModel: PurchaseViewModel = viewModel()
-                    val productViewModel: ProductViewModel = viewModel()
-                    val financeViewModel: FinanceViewModel = viewModel()
-                    val shoppingViewModel: ShoppingViewModel = viewModel()
-                    val usageViewModel: UsageViewModel = viewModel()
+                    // Setiap akun punya ViewModel sendiri, sehingga akun baru
+                    // tidak membawa data/profil dari akun sebelumnya.
+                    val userKey = SupabaseConfig.userId.orEmpty()
+
+                    val purchaseViewModel: PurchaseViewModel = viewModel(key = "purchase-$userKey")
+                    val productViewModel: ProductViewModel = viewModel(key = "product-$userKey")
+                    val financeViewModel: FinanceViewModel = viewModel(key = "finance-$userKey")
+                    val shoppingViewModel: ShoppingViewModel = viewModel(key = "shopping-$userKey")
+                    val usageViewModel: UsageViewModel = viewModel(key = "usage-$userKey")
+                    val profileViewModel: ProfileViewModel = viewModel(key = "profile-$userKey")
 
                     val usageState by usageViewModel.uiState.collectAsState()
                     val productState by productViewModel.uiState.collectAsState()
                     val financeState by financeViewModel.uiState.collectAsState()
+                    val profileState by profileViewModel.uiState.collectAsState()
+                    val shoppingState by shoppingViewModel.uiState.collectAsState()
 
                     val selectedUsage = usageState.entries
                         .firstOrNull { it.log.id == selectedUsageId }
@@ -277,6 +286,9 @@ class MainActivity : ComponentActivity() {
                             HomeScreen(
                                 productState = productState,
                                 transactions = financeState.transactions,
+                                userName = profileState.profile.fullName,
+                                usageLogs = usageState.logs,
+                                shoppingItems = shoppingState.items,
 
                                 onAddProduct = {
                                     selectedPage = "produk"
@@ -361,6 +373,7 @@ class MainActivity : ComponentActivity() {
                         "profil" -> {
 
                             ProfilScreen(
+                                profileViewModel = profileViewModel,
                                 onNavigateHome = {
                                     selectedPage = "home"
                                 },
@@ -748,6 +761,8 @@ class MainActivity : ComponentActivity() {
                                 // ==================================
 
                                 PencatatanKeuanganScreen(
+
+                                    financeViewModel = financeViewModel,
 
                                     onNavigateHome = {
                                         selectedPage = "home"

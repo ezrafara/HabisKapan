@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.pencatatankeuangan.model.ShoppingItem
 import com.example.pencatatankeuangan.viewmodel.ShoppingViewModel
+import com.example.pencatatankeuangan.ui.theme.AppDialog
 
 private val DetailBlue = Color(0xFF2962ED)
 private val DetailNavy = Color(0xFF101B33)
@@ -141,7 +142,7 @@ fun ShoppingDetailScreen(
 
             Button(
                 onClick = { shoppingViewModel.togglePurchased(currentItem.id) },
-                modifier = Modifier.fillMaxWidth().height(50.dp),
+                modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (currentItem.isPurchased) Color(0xFFEDF1F6) else DetailBlue,
@@ -164,7 +165,7 @@ fun ShoppingDetailScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedButton(
                     onClick = { onEdit(currentItem) },
-                    modifier = Modifier.weight(1f).height(48.dp),
+                    modifier = Modifier.weight(1f).height(52.dp),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Icon(Icons.Default.Edit, null)
@@ -174,7 +175,7 @@ fun ShoppingDetailScreen(
 
                 OutlinedButton(
                     onClick = { showDeleteDialog = true },
-                    modifier = Modifier.weight(1f).height(48.dp),
+                    modifier = Modifier.weight(1f).height(52.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFE53935))
                 ) {
@@ -187,28 +188,18 @@ fun ShoppingDetailScreen(
     }
 
     if (showDeleteDialog) {
-        AlertDialog(
-            onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Hapus Item?") },
-            text = {
-                Text("Apakah kamu yakin ingin menghapus ${currentItem.productName} dari daftar belanja?")
+        AppDialog(
+            title = "Hapus Item?",
+            message = "Apakah kamu yakin ingin menghapus ${currentItem.productName} dari daftar belanja?",
+            icon = Icons.Default.Delete,
+            destructive = true,
+            confirmText = "Ya, Hapus",
+            onConfirm = {
+                shoppingViewModel.deleteItem(currentItem.id)
+                showDeleteDialog = false
+                onDelete()
             },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        shoppingViewModel.deleteItem(currentItem.id)
-                        showDeleteDialog = false
-                        onDelete()
-                    }
-                ) {
-                    Text("Hapus", color = Color.Red)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("Batal")
-                }
-            }
+            onDismiss = { showDeleteDialog = false }
         )
     }
 }

@@ -34,6 +34,7 @@ import com.example.pencatatankeuangan.model.bulanTahun
 import com.example.pencatatankeuangan.model.formatRupiah
 import com.example.pencatatankeuangan.model.formatTanggal
 import com.example.pencatatankeuangan.model.todayIso
+import com.example.pencatatankeuangan.ui.theme.AppDialog
 
 /**
  * HALAMAN 1 - LIST RIWAYAT PEMBELIAN
@@ -386,10 +387,12 @@ private fun PilihBulanDialog(
         "Jul", "Agu", "Sep", "Okt", "Nov", "Des"
     )
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Pilih bulan") },
-        text = {
+    AppDialog(
+        title = "Pilih bulan",
+        confirmText = "Semua bulan",
+        onConfirm = onSemuaBulan,
+        onDismiss = onDismiss,
+        content = {
             Column {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -450,16 +453,6 @@ private fun PilihBulanDialog(
                         }
                     }
                 }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onSemuaBulan) {
-                Text("Semua bulan")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Batal")
             }
         }
     )

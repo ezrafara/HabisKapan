@@ -59,6 +59,8 @@ import androidx.compose.material.icons.filled.ArrowBack
 import com.example.pencatatankeuangan.model.usageIsoToMillis
 import com.example.pencatatankeuangan.model.usageMillisToIso
 import java.util.Locale
+import com.example.pencatatankeuangan.ui.theme.AppDialog
+import androidx.compose.material.icons.filled.Delete
 
 // ======================================================
 // WARNA
@@ -333,30 +335,14 @@ internal fun UsageConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Color.White,
-        title = {
-            Text(
-                text = title,
-                color = UsageNavy,
-                fontWeight = FontWeight.Bold,
-                fontSize = 18.sp
-            )
-        },
-        text = {
-            Text(text = message, color = UsageMuted, fontSize = 13.sp)
-        },
-        confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text(confirmText, color = UsageRed, fontWeight = FontWeight.Bold)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Tidak", color = UsageBlue)
-            }
-        }
+    AppDialog(
+        title = title,
+        message = message,
+        icon = Icons.Default.Delete,
+        destructive = true,
+        confirmText = confirmText,
+        onConfirm = onConfirm,
+        onDismiss = onDismiss
     )
 }
 

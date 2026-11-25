@@ -295,7 +295,7 @@ fun PencatatanKeuanganScreen(
                         },
                         modifier = Modifier
                             .weight(1f)
-                            .height(50.dp),
+                            .height(52.dp),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Text(
@@ -314,7 +314,7 @@ fun PencatatanKeuanganScreen(
                         },
                         modifier = Modifier
                             .weight(1f)
-                            .height(50.dp),
+                            .height(52.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Red
                         ),
@@ -603,7 +603,7 @@ private fun FinanceHome(
             onClick = onOpeningBalance,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp),
+                .height(52.dp),
             shape = RoundedCornerShape(12.dp)
         ) {
             Icon(
@@ -625,7 +625,7 @@ private fun FinanceHome(
             onClick = onAdd,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp)
+                .height(52.dp)
                 .padding(bottom = 4.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = Blue
@@ -1185,11 +1185,11 @@ private fun FinanceFormScreen(
             },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(54.dp),
+                .height(52.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = Blue
             ),
-            shape = RoundedCornerShape(14.dp)
+            shape = RoundedCornerShape(12.dp)
         ) {
             Icon(
                 Icons.Default.Check,
@@ -1223,8 +1223,8 @@ private fun TypeButton(
 ) {
     OutlinedButton(
         onClick = onClick,
-        modifier = modifier.height(58.dp),
-        shape = RoundedCornerShape(14.dp),
+        modifier = modifier.height(52.dp),
+        shape = RoundedCornerShape(12.dp),
         border = BorderStroke(
             1.dp,
             if (selected) selectedColor else Border

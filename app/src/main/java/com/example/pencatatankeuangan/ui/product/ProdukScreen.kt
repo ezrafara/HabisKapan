@@ -41,6 +41,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.pencatatankeuangan.model.ProductItem
 import com.example.pencatatankeuangan.viewmodel.ProductViewModel
 import com.example.pencatatankeuangan.viewmodel.ProductUiState
+import com.example.pencatatankeuangan.ui.theme.AppDialog
 
 private val Blue = Color(0xFF2962ED)
 private val Navy = Color(0xFF101B33)
@@ -220,43 +221,18 @@ fun ProdukScreen(
     }
 
     if (showDelete && selectedProduct != null) {
-        AlertDialog(
-            onDismissRequest = { showDelete = false },
-            icon = {
-                Icon(
-                    Icons.Default.Delete,
-                    contentDescription = null,
-                    tint = Red
-                )
+        AppDialog(
+            title = "Hapus produk ini?",
+            message = "Data yang dihapus tidak dapat dikembalikan.",
+            icon = Icons.Default.Delete,
+            destructive = true,
+            confirmText = "Ya, Hapus",
+            onConfirm = {
+                productViewModel.deleteProduct(selectedProduct.id)
+                showDelete = false
+                currentPage = ProductPage.LIST.name
             },
-            title = { Text("Hapus produk ini?") },
-            text = {
-                Text("Data yang dihapus tidak dapat dikembalikan.")
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        productViewModel.deleteProduct(
-                            selectedProduct.id
-                        )
-                        showDelete = false
-                        currentPage = ProductPage.LIST.name
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Red
-                    )
-                ) {
-                    Text("Ya, Hapus")
-                }
-            },
-            dismissButton = {
-                OutlinedButton(
-                    onClick = { showDelete = false }
-                ) {
-                    Text("Batal")
-                }
-            },
-            containerColor = Color.White
+            onDismiss = { showDelete = false }
         )
     }
 }
@@ -385,23 +361,18 @@ private fun ProductList(
                 }
             }
 
-            Button(
+            ExtendedFloatingActionButton(
                 onClick = onAdd,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(bottom = 12.dp)
-                    .height(48.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Blue
-                ),
-                shape = RoundedCornerShape(14.dp)
+                    .padding(bottom = 16.dp),
+                containerColor = Blue,
+                contentColor = Color.White,
+                shape = RoundedCornerShape(16.dp)
             ) {
-                Icon(
-                    Icons.Default.Add,
-                    contentDescription = null
-                )
+                Icon(Icons.Default.Add, contentDescription = "Tambah produk")
                 Spacer(Modifier.width(6.dp))
-                Text("Tambah")
+                Text("Tambah", fontWeight = FontWeight.SemiBold)
             }
         }
     }
@@ -621,7 +592,7 @@ private fun ProductDetail(
                 onClick = onEdit,
                 modifier = Modifier
                     .weight(1f)
-                    .height(50.dp),
+                    .height(52.dp),
                 border = BorderStroke(1.dp, Color(0xFFBCD2FF)),
                 shape = RoundedCornerShape(12.dp)
             ) {
@@ -636,7 +607,7 @@ private fun ProductDetail(
 
             OutlinedButton(
                 onClick = onDelete,
-                modifier = Modifier.height(50.dp),
+                modifier = Modifier.height(52.dp),
                 border = BorderStroke(1.dp, Color(0xFFFFBFC3)),
                 shape = RoundedCornerShape(12.dp)
             ) {
@@ -653,7 +624,7 @@ private fun ProductDetail(
             onClick = onAddToShopping,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(50.dp),
+                .height(52.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = Blue
             ),
@@ -963,8 +934,8 @@ private fun ProductForm(
             enabled = !isSaving,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(54.dp),
-            shape = RoundedCornerShape(13.dp),
+                .height(52.dp),
+            shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = Blue
             )

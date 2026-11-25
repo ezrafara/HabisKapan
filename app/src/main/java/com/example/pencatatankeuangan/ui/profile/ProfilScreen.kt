@@ -39,6 +39,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 
 import com.example.pencatatankeuangan.model.UserProfile
 import com.example.pencatatankeuangan.viewmodel.ProfileViewModel
+import com.example.pencatatankeuangan.ui.theme.AppDialog
+import androidx.compose.material.icons.automirrored.filled.Logout
 
 private val Blue = Color(0xFF2962ED)
 private val Navy = Color(0xFF101B33)
@@ -207,72 +209,29 @@ fun ProfilScreen(
     // DIALOG LOGOUT
     if (showLogoutDialog) {
 
-        AlertDialog(
-            onDismissRequest = {
+        AppDialog(
+            title = "Keluar dari Akun?",
+            message = "Apakah kamu yakin ingin keluar dari akun HabisKapan?",
+            icon = Icons.AutoMirrored.Filled.Logout,
+            destructive = true,
+            confirmText = "Ya, Keluar",
+            onConfirm = {
                 showLogoutDialog = false
+                onLogout()
             },
-
-            title = {
-                Text("Keluar dari Akun?")
-            },
-
-            text = {
-                Text(
-                    "Apakah kamu yakin ingin keluar dari akun HabisKapan?"
-                )
-            },
-
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showLogoutDialog = false
-                        onLogout()
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Red
-                    )
-                ) {
-                    Text("Ya, Keluar")
-                }
-            },
-
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        showLogoutDialog = false
-                    }
-                ) {
-                    Text("Batal")
-                }
-            },
-
-            containerColor = Color.White
+            onDismiss = { showLogoutDialog = false }
         )
     }
 
     if (showHelpDialog) {
-        AlertDialog(
-            onDismissRequest = {
-                showHelpDialog = false
-            },
-            title = {
-                Text("Pusat Bantuan")
-            },
-            text = {
-                Text(
-                    "Gunakan menu Produk untuk mengelola kebutuhan, " +
-                            "dan Aktivitas untuk melihat catatan keuangan."
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showHelpDialog = false
-                    }
-                ) {
-                    Text("Mengerti")
-                }
-            }
+        AppDialog(
+            title = "Pusat Bantuan",
+            message = "Gunakan menu Produk untuk mengelola kebutuhan, dan Aktivitas untuk melihat catatan keuangan.",
+            icon = Icons.Default.Info,
+            confirmText = "Mengerti",
+            dismissText = null,
+            onConfirm = { showHelpDialog = false },
+            onDismiss = { showHelpDialog = false }
         )
     }
 }
@@ -528,7 +487,7 @@ private fun ProfileHome(
             onClick = onLogout,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp),
+                .height(52.dp),
 
             border = BorderStroke(
                 1.dp,
@@ -799,7 +758,7 @@ private fun EditProfileScreen(
                 containerColor = Blue
             ),
 
-            shape = RoundedCornerShape(13.dp)
+            shape = RoundedCornerShape(12.dp)
         ) {
 
             Icon(
@@ -994,7 +953,7 @@ private fun ChangePasswordScreen(
                 containerColor = Blue
             ),
 
-            shape = RoundedCornerShape(13.dp)
+            shape = RoundedCornerShape(12.dp)
         ) {
 
             Icon(
@@ -1012,28 +971,14 @@ private fun ChangePasswordScreen(
     }
 
     if (showDemoInfo) {
-        AlertDialog(
-            onDismissRequest = {
-                showDemoInfo = false
-            },
-            title = {
-                Text("Mode Demo")
-            },
-            text = {
-                Text(
-                    "Validasi form berhasil, tetapi kata sandi belum " +
-                            "diubah karena autentikasi Supabase belum dihubungkan."
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showDemoInfo = false
-                    }
-                ) {
-                    Text("Mengerti")
-                }
-            }
+        AppDialog(
+            title = "Mode Demo",
+            message = "Validasi form berhasil, tetapi kata sandi belum diubah karena autentikasi Supabase belum dihubungkan.",
+            icon = Icons.Default.Info,
+            confirmText = "Mengerti",
+            dismissText = null,
+            onConfirm = { showDemoInfo = false },
+            onDismiss = { showDemoInfo = false }
         )
     }
 }

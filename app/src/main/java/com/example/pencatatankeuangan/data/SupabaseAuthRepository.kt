@@ -75,7 +75,7 @@ class SupabaseAuthRepository(
         } catch (e: Exception) {
             AuthResult(
                 success = false,
-                message = e.message ?: "Registrasi gagal."
+                message = friendlyError(e, "Registrasi gagal.")
             )
         }
     }
@@ -126,8 +126,78 @@ class SupabaseAuthRepository(
         } catch (e: Exception) {
             AuthResult(
                 success = false,
-                message = e.message ?: "Login gagal."
+                message = friendlyError(e, "Login gagal.")
             )
+        }
+    }
+
+    // =========================
+    // LUPA KATA SANDI (mode demo: tanpa verifikasi email)
+    // Memanggil fungsi database reset_password_demo
+    // =========================
+    suspend fun resetPassword(
+        email: String,
+        newPassword: String
+    ): AuthResult = withContext(Dispatchers.IO) {
+        try {
+            val response = request(
+                method = "POST",
+                path = "/rest/v1/rpc/reset_password_demo",
+                body = JSONObject()
+                    .put("p_email", email.trim())
+                    .put("p_new_password", newPassword)
+            )
+
+            if (response.optString("result") != "true") {
+                throw IOException("Email tidak terdaftar.")
+            }
+
+            AuthResult(
+                success = true,
+                message = "Kata sandi berhasil diubah. Silakan masuk dengan kata sandi baru."
+            )
+        } catch (e: Exception) {
+            AuthResult(
+                success = false,
+                message = friendlyError(e, "Gagal mengubah kata sandi.")
+            )
+        }
+    }
+
+    // =========================
+    // PESAN ERROR BAHASA INDONESIA
+    // =========================
+    private fun friendlyError(e: Exception, fallback: String): String {
+        if (
+            e is java.net.UnknownHostException ||
+            e is java.net.SocketTimeoutException ||
+            e is java.net.ConnectException
+        ) {
+            return "Tidak dapat terhubung ke server. Periksa koneksi internet kamu."
+        }
+
+        val raw = e.message.orEmpty()
+        val msg = raw.lowercase()
+
+        return when {
+            "invalid login credentials" in msg ->
+                "Email atau kata sandi salah. Periksa kembali lalu coba lagi."
+            "email not confirmed" in msg ->
+                "Email belum dikonfirmasi. Buka email verifikasi dari HabisKapan terlebih dahulu."
+            "already registered" in msg || "already been registered" in msg ->
+                "Email ini sudah terdaftar. Silakan masuk."
+            "rate limit" in msg || "too many" in msg || "seconds" in msg && "security purposes" in msg ->
+                "Terlalu banyak percobaan. Tunggu beberapa saat lalu coba lagi."
+            "token has expired" in msg || "otp_expired" in msg || "invalid" in msg && "token" in msg ->
+                "Kode verifikasi salah atau sudah kedaluwarsa."
+            "should be different" in msg || "same password" in msg ->
+                "Kata sandi baru harus berbeda dari yang lama."
+            "password should be at least" in msg || "weak" in msg ->
+                "Kata sandi terlalu lemah. Gunakan minimal 8 karakter dengan huruf dan angka."
+            "email address" in msg && "invalid" in msg ->
+                "Alamat email tidak valid atau tidak dapat digunakan."
+            raw.isBlank() -> fallback
+            else -> raw
         }
     }
 
@@ -328,7 +398,12 @@ class SupabaseAuthRepository(
             return if (responseText.isBlank()) {
                 JSONObject()
             } else {
-                JSONObject(responseText)
+                try {
+                    JSONObject(responseText)
+                } catch (_: Exception) {
+                    // Respons bukan objek JSON (mis. true/false dari RPC)
+                    JSONObject().put("result", responseText.trim())
+                }
             }
 
         } finally {

@@ -22,6 +22,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.pencatatankeuangan.model.FinanceTransaction
+import com.example.pencatatankeuangan.model.ShoppingItem
+import com.example.pencatatankeuangan.model.UsageLog
 import com.example.pencatatankeuangan.model.TransactionType
 import com.example.pencatatankeuangan.model.ProductItem
 import com.example.pencatatankeuangan.viewmodel.ProductUiState
@@ -46,12 +48,21 @@ fun HomeScreen(
     onPurchase: () -> Unit,
     onOpenProducts: () -> Unit,
     onOpenActivity: () -> Unit,
-    onOpenProfile: () -> Unit
+    onOpenProfile: () -> Unit,
+    userName: String = "",
+    usageLogs: List<UsageLog> = emptyList(),
+    shoppingItems: List<ShoppingItem> = emptyList()
 ) {
+    val firstName = userName.trim().substringBefore(' ')
+        .replaceFirstChar { it.uppercase() }
+    val initial = firstName.firstOrNull()?.toString() ?: ""
+
     val today = SimpleDateFormat("EEEE, dd MMMM yyyy", Locale("id", "ID"))
         .format(Date()).uppercase(Locale("id", "ID"))
     val month = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())
     val todayDate = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+    val usageTodayCount = usageLogs.count { it.date == todayDate }
+    val unpurchased = shoppingItems.count { !it.isPurchased }
     val expensesThisMonth = transactions.filter {
         it.type == TransactionType.EXPENSE && it.date.startsWith(month)
     }.sumOf { it.amount }
@@ -140,11 +151,11 @@ fun HomeScreen(
                     Column(Modifier.weight(1f)) {
                         Text(today, color = Blue, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.height(7.dp))
-                        Text("Halo, Kania!", color = Navy, fontSize = 23.sp, fontWeight = FontWeight.Bold)
+                        Text(if (firstName.isBlank()) "Halo!" else "Halo, $firstName!", color = Navy, fontSize = 23.sp, fontWeight = FontWeight.Bold)
                         Text("Yuk, cek kebutuhanmu hari ini.", color = Muted, fontSize = 12.sp)
                     }
                     Box(Modifier.size(48.dp).clip(RoundedCornerShape(15.dp)).background(Blue), contentAlignment = Alignment.Center) {
-                        Text("K", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                        Text(initial, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -162,12 +173,12 @@ fun HomeScreen(
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     SummaryCard("Total Produk", productState.products.size.toString(), "produk terdaftar", Icons.Default.Inventory2, Modifier.weight(1f))
-                    SummaryCard("Pemakaian Hari Ini", "—", "data pemakaian belum tersedia", Icons.Default.Bolt, Modifier.weight(1f))
+                    SummaryCard("Pemakaian Hari Ini", "$usageTodayCount", if (usageTodayCount == 0) "belum ada pemakaian tercatat" else "aktivitas tercatat hari ini", Icons.Default.Bolt, Modifier.weight(1f))
                 }
             }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    SummaryCard("Belum Dibeli", "—", "daftar belanja belum tersedia", Icons.Default.ShoppingCart, Modifier.weight(1f))
+                    SummaryCard("Belum Dibeli", "$unpurchased", if (unpurchased == 0) "semua kebutuhan sudah dibeli" else "barang di daftar belanja", Icons.Default.ShoppingCart, Modifier.weight(1f))
                     SummaryCard("Pengeluaran", currency.format(expensesThisMonth), "bulan ini", Icons.Default.AccountBalanceWallet, Modifier.weight(1f), compact = true)
                 }
             }

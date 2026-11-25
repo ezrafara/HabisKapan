@@ -1,58 +1,72 @@
 package com.example.pencatatankeuangan.ui.theme
 
-import android.app.Activity
-import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 
-private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
+// Skema warna HabisKapan. Aplikasi dirancang terang, jadi semua komponen
+// bawaan (dialog, date picker, dropdown, bottom sheet, switch, dll.)
+// mengikuti warna ini agar tampilannya seragam.
+private val HabisKapanColorScheme = lightColorScheme(
+    primary = AppBlue,
+    onPrimary = Color.White,
+    primaryContainer = AppBlueSoft,
+    onPrimaryContainer = AppBlue,
+
+    secondary = AppBlue,
+    onSecondary = Color.White,
+    secondaryContainer = AppBlueSoft,
+    onSecondaryContainer = AppBlue,
+
+    tertiary = AppBlue,
+    onTertiary = Color.White,
+
+    background = AppPageBg,
+    onBackground = AppNavy,
+
+    surface = Color.White,
+    onSurface = AppNavy,
+    surfaceVariant = AppPageBg,
+    onSurfaceVariant = AppMuted,
+    surfaceTint = Color.Transparent,
+
+    surfaceContainerLowest = Color.White,
+    surfaceContainerLow = Color.White,
+    surfaceContainer = Color.White,
+    surfaceContainerHigh = Color.White,
+    surfaceContainerHighest = AppPageBg,
+
+    outlineVariant = AppBorder,
+
+    error = AppRed,
+    onError = Color.White,
+    errorContainer = AppRedBg,
+    onErrorContainer = AppRed
 )
 
-private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+private val HabisKapanShapes = Shapes(
+    extraSmall = RoundedCornerShape(8.dp),
+    small = RoundedCornerShape(10.dp),
+    medium = RoundedCornerShape(12.dp),
+    large = RoundedCornerShape(16.dp),
+    extraLarge = RoundedCornerShape(20.dp)
 )
 
 @Composable
 fun PencatatankeuanganTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    // Dipertahankan agar pemanggil lama tetap valid. Tampilan selalu terang.
+    @Suppress("UNUSED_PARAMETER") darkTheme: Boolean = false,
+    @Suppress("UNUSED_PARAMETER") dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
-    }
-
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = HabisKapanColorScheme,
         typography = Typography,
+        shapes = HabisKapanShapes,
         content = content
     )
 }

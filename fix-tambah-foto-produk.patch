@@ -1,0 +1,442 @@
+diff --git a/app/src/main/java/com/example/pencatatankeuangan/data/ProductImageRepository.kt b/app/src/main/java/com/example/pencatatankeuangan/data/ProductImageRepository.kt
+index ff77dd0..916410b 100644
+--- a/app/src/main/java/com/example/pencatatankeuangan/data/ProductImageRepository.kt
++++ b/app/src/main/java/com/example/pencatatankeuangan/data/ProductImageRepository.kt
+@@ -10,6 +10,8 @@ import java.net.HttpURLConnection
+ import java.net.URL
+ import java.util.UUID
+ 
++private const val MAX_IMAGE_BYTES = 5L * 1024 * 1024
++
+ class ProductImageRepository(
+     private val context: Context
+ ) {
+@@ -38,6 +40,15 @@ class ProductImageRepository(
+                 throw IOException("Format gambar harus JPG, PNG, atau WEBP.")
+             }
+ 
++            val sizeBytes = context.contentResolver
++                .openAssetFileDescriptor(uri, "r")
++                ?.use { it.length }
++                ?: -1L
++
++            if (sizeBytes > MAX_IMAGE_BYTES) {
++                throw IOException("Ukuran gambar maksimal 5 MB.")
++            }
++
+             val extension = when (mimeType) {
+                 "image/png" -> "png"
+                 "image/webp" -> "webp"
+diff --git a/app/src/main/java/com/example/pencatatankeuangan/ui/product/ProdukScreen.kt b/app/src/main/java/com/example/pencatatankeuangan/ui/product/ProdukScreen.kt
+index 13868fc..2df2d9d 100644
+--- a/app/src/main/java/com/example/pencatatankeuangan/ui/product/ProdukScreen.kt
++++ b/app/src/main/java/com/example/pencatatankeuangan/ui/product/ProdukScreen.kt
+@@ -12,7 +12,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
+ import androidx.compose.foundation.text.KeyboardOptions
+ import androidx.compose.foundation.verticalScroll
+ 
++import android.net.Uri
++import androidx.activity.compose.rememberLauncherForActivityResult
+ import androidx.activity.result.PickVisualMediaRequest
++import androidx.activity.result.contract.ActivityResultContracts
++import androidx.compose.ui.layout.ContentScale
++import androidx.compose.ui.draw.clip
++import coil.compose.AsyncImage
+ 
+ import androidx.compose.material.icons.Icons
+ import androidx.compose.material.icons.filled.*
+@@ -160,15 +166,19 @@ fun ProdukScreen(
+                     onBack = {
+                         currentPage = ProductPage.LIST.name
+                     },
++                    isSaving = state.isSaving,
+                     onSave = { name, brand, category,
+-                               unit, stock, note ->
++                               unit, stock, note, imageUri ->
+ 
+                         productViewModel.addProduct(
+                             name, brand, category,
+-                            unit, stock, note
+-                        )
+-
+-                        currentPage = ProductPage.LIST.name
++                            unit, stock, note,
++                            imageUri = imageUri
++                        ) { success ->
++                            if (success) {
++                                currentPage = ProductPage.LIST.name
++                            }
++                        }
+                     },
+                     modifier = Modifier.padding(padding)
+                 )
+@@ -182,8 +192,9 @@ fun ProdukScreen(
+                         onBack = {
+                             currentPage = ProductPage.DETAIL.name
+                         },
++                        isSaving = state.isSaving,
+                         onSave = { name, brand, category,
+-                                   unit, stock, note ->
++                                   unit, stock, note, imageUri ->
+ 
+                             productViewModel.updateProduct(
+                                 selectedProduct.copy(
+@@ -193,10 +204,13 @@ fun ProdukScreen(
+                                     unit = unit,
+                                     stock = stock,
+                                     note = note
+-                                )
+-                            )
+-
+-                            currentPage = ProductPage.DETAIL.name
++                                ),
++                                newImageUri = imageUri
++                            ) { success ->
++                                if (success) {
++                                    currentPage = ProductPage.DETAIL.name
++                                }
++                            }
+                         },
+                         modifier = Modifier.padding(padding)
+                     )
+@@ -418,7 +432,8 @@ private fun ProductCard(
+             modifier = Modifier.padding(9.dp),
+             verticalArrangement = Arrangement.spacedBy(7.dp)
+         ) {
+-            ProductImagePlaceholder(
++            ProductImage(
++                imageUrl = product.imageUrl,
+                 modifier = Modifier
+                     .fillMaxWidth()
+                     .height(105.dp)
+@@ -465,7 +480,23 @@ private fun ProductCard(
+     }
+ }
+ 
+-// Gambar sementara sampai fitur upload foto dibuat
++// Menampilkan foto produk; placeholder jika belum ada / gagal dimuat
++@Composable
++private fun ProductImage(
++    imageUrl: String?,
++    modifier: Modifier = Modifier
++) {
++    if (imageUrl.isNullOrBlank()) {
++        ProductImagePlaceholder(modifier)
++    } else {
++        AsyncImage(
++            model = imageUrl,
++            contentDescription = "Foto produk",
++            contentScale = ContentScale.Crop,
++            modifier = modifier.clip(RoundedCornerShape(12.dp))
++        )
++    }
++}
+ 
+ @Composable
+ private fun ProductImagePlaceholder(
+@@ -521,8 +552,9 @@ private fun ProductDetail(
+             border = BorderStroke(1.dp, BorderColor)
+         ) {
+             Column(Modifier.padding(12.dp)) {
+-                ProductImagePlaceholder(
+-                    Modifier
++                ProductImage(
++                    imageUrl = product.imageUrl,
++                    modifier = Modifier
+                         .fillMaxWidth()
+                         .height(155.dp)
+                 )
+@@ -673,9 +705,20 @@ private fun ProductForm(
+     title: String,
+     product: ProductItem?,
+     onBack: () -> Unit,
+-    onSave: (String, String, String, String, Int, String) -> Unit,
++    isSaving: Boolean,
++    onSave: (String, String, String, String, Int, String, Uri?) -> Unit,
+     modifier: Modifier = Modifier
+ ) {
++    var imageUri by rememberSaveable(product?.id) {
++        mutableStateOf<Uri?>(null)
++    }
++
++    val photoPicker = rememberLauncherForActivityResult(
++        ActivityResultContracts.PickVisualMedia()
++    ) { uri ->
++        if (uri != null) imageUri = uri
++    }
++
+     var name by rememberSaveable(product?.id) {
+         mutableStateOf(product?.name ?: "")
+     }
+@@ -717,38 +760,66 @@ private fun ProductForm(
+             onBack = onBack
+         )
+ 
+-        // PLACEHOLDER FOTO
++        // PILIH FOTO DARI GALERI
+         Box(
+             modifier = Modifier
+                 .fillMaxWidth()
+                 .height(125.dp)
+-                .background(
+-                    PageBg,
+-                    RoundedCornerShape(15.dp)
+-                ),
++                .clip(RoundedCornerShape(15.dp))
++                .background(PageBg)
++                .clickable(enabled = !isSaving) {
++                    photoPicker.launch(
++                        PickVisualMediaRequest(
++                            ActivityResultContracts.PickVisualMedia.ImageOnly
++                        )
++                    )
++                },
+             contentAlignment = Alignment.Center
+         ) {
+-            Column(
+-                horizontalAlignment = Alignment.CenterHorizontally
+-            ) {
+-                Icon(
+-                    Icons.Default.AddPhotoAlternate,
+-                    contentDescription = null,
+-                    tint = Blue,
+-                    modifier = Modifier.size(30.dp)
+-                )
+-                Spacer(Modifier.height(8.dp))
+-                Text(
+-                    "Unggah foto produk",
+-                    color = Blue,
+-                    fontSize = 12.sp,
+-                    fontWeight = FontWeight.Bold
++            val preview: Any? = imageUri ?: product?.imageUrl
++
++            if (preview != null) {
++                AsyncImage(
++                    model = preview,
++                    contentDescription = "Foto produk",
++                    contentScale = ContentScale.Crop,
++                    modifier = Modifier.fillMaxSize()
+                 )
++
+                 Text(
+-                    "JPG atau PNG, maks. 5 MB",
+-                    color = Muted,
+-                    fontSize = 10.sp
++                    "Ketuk untuk mengganti foto",
++                    color = Color.White,
++                    fontSize = 11.sp,
++                    modifier = Modifier
++                        .align(Alignment.BottomCenter)
++                        .fillMaxWidth()
++                        .background(Color(0x99101B33))
++                        .padding(6.dp),
++                    textAlign = TextAlign.Center
+                 )
++            } else {
++                Column(
++                    horizontalAlignment = Alignment.CenterHorizontally
++                ) {
++                    Icon(
++                        Icons.Default.AddPhotoAlternate,
++                        contentDescription = null,
++                        tint = Blue,
++                        modifier = Modifier.size(30.dp)
++                    )
++                    Spacer(Modifier.height(8.dp))
++                    Text(
++                        "Unggah foto produk",
++                        color = Blue,
++                        fontSize = 12.sp,
++                        fontWeight = FontWeight.Bold
++                    )
++                    Text(
++                        "JPG, PNG, atau WEBP, maks. 5 MB",
++                        color = Muted,
++                        fontSize = 10.sp
++                    )
++                }
+             }
+         }
+ 
+@@ -883,11 +954,13 @@ private fun ProductForm(
+                             category,
+                             unit,
+                             parsedStock,
+-                            note.trim()
++                            note.trim(),
++                            imageUri
+                         )
+                     }
+                 }
+             },
++            enabled = !isSaving,
+             modifier = Modifier
+                 .fillMaxWidth()
+                 .height(54.dp),
+@@ -896,18 +969,28 @@ private fun ProductForm(
+                 containerColor = Blue
+             )
+         ) {
+-            Icon(
+-                Icons.Default.Check,
+-                contentDescription = null
+-            )
+-            Spacer(Modifier.width(8.dp))
+-            Text(
+-                if (product == null)
+-                    "Simpan Data"
+-                else
+-                    "Simpan Perubahan",
+-                fontWeight = FontWeight.Bold
+-            )
++            if (isSaving) {
++                CircularProgressIndicator(
++                    modifier = Modifier.size(20.dp),
++                    color = Color.White,
++                    strokeWidth = 2.dp
++                )
++                Spacer(Modifier.width(8.dp))
++                Text("Menyimpan...", fontWeight = FontWeight.Bold)
++            } else {
++                Icon(
++                    Icons.Default.Check,
++                    contentDescription = null
++                )
++                Spacer(Modifier.width(8.dp))
++                Text(
++                    if (product == null)
++                        "Simpan Data"
++                    else
++                        "Simpan Perubahan",
++                    fontWeight = FontWeight.Bold
++                )
++            }
+         }
+ 
+         Spacer(Modifier.height(14.dp))
+diff --git a/app/src/main/java/com/example/pencatatankeuangan/viewmodel/ProductViewModel.kt b/app/src/main/java/com/example/pencatatankeuangan/viewmodel/ProductViewModel.kt
+index 6dee232..17d7031 100644
+--- a/app/src/main/java/com/example/pencatatankeuangan/viewmodel/ProductViewModel.kt
++++ b/app/src/main/java/com/example/pencatatankeuangan/viewmodel/ProductViewModel.kt
+@@ -1,9 +1,12 @@
+ 
+ package com.example.pencatatankeuangan.viewmodel
+ 
+-import androidx.lifecycle.ViewModel
++import android.app.Application
++import android.net.Uri
++import androidx.lifecycle.AndroidViewModel
+ import androidx.lifecycle.viewModelScope
+ 
++import com.example.pencatatankeuangan.data.ProductImageRepository
+ import com.example.pencatatankeuangan.data.ProductRepository
+ import com.example.pencatatankeuangan.model.ProductItem
+ 
+@@ -17,6 +20,7 @@ data class ProductUiState(
+     val searchQuery: String = "",
+     val selectedCategory: String = "Semua",
+     val isLoading: Boolean = false,
++    val isSaving: Boolean = false,
+     val message: String? = null
+ ) {
+     val filteredProducts: List<ProductItem>
+@@ -40,8 +44,11 @@ data class ProductUiState(
+ }
+ 
+ class ProductViewModel(
+-    private val repository: ProductRepository = ProductRepository()
+-) : ViewModel() {
++    application: Application
++) : AndroidViewModel(application) {
++
++    private val repository = ProductRepository()
++    private val imageRepository = ProductImageRepository(application)
+ 
+     private val _uiState = MutableStateFlow(
+         ProductUiState(isLoading = true)
+@@ -91,7 +98,7 @@ class ProductViewModel(
+         )
+     }
+ 
+-    // INSERT
++    // INSERT (upload foto dulu jika ada, lalu simpan produk)
+     fun addProduct(
+         name: String,
+         brand: String,
+@@ -99,10 +106,17 @@ class ProductViewModel(
+         unit: String,
+         stock: Int,
+         note: String,
+-        imageUrl: String? = null
++        imageUri: Uri? = null,
++        onResult: (Boolean) -> Unit = {}
+     ) {
+         viewModelScope.launch {
++            _uiState.value = _uiState.value.copy(isSaving = true)
++
+             try {
++                val imageUrl = imageUri?.let {
++                    imageRepository.uploadImage(it)
++                }
++
+                 repository.addProduct(
+                     ProductItem(
+                         id = 0L,
+@@ -118,30 +132,52 @@ class ProductViewModel(
+ 
+                 _uiState.value = _uiState.value.copy(
+                     products = repository.getProducts(),
++                    isSaving = false,
+                     message = "Produk berhasil ditambahkan"
+                 )
++                onResult(true)
+             } catch (e: Exception) {
+                 _uiState.value = _uiState.value.copy(
+-                    message = "Gagal menambahkan produk"
++                    isSaving = false,
++                    message = "Gagal menambahkan produk: ${e.message.orEmpty()}"
+                 )
++                onResult(false)
+             }
+         }
+     }
+ 
+-    // UPDATE
+-    fun updateProduct(product: ProductItem) {
++    // UPDATE (jika ada foto baru, upload dulu lalu ganti image_url)
++    fun updateProduct(
++        product: ProductItem,
++        newImageUri: Uri? = null,
++        onResult: (Boolean) -> Unit = {}
++    ) {
+         viewModelScope.launch {
++            _uiState.value = _uiState.value.copy(isSaving = true)
++
+             try {
+-                repository.updateProduct(product)
++                val finalProduct = if (newImageUri != null) {
++                    product.copy(
++                        imageUrl = imageRepository.uploadImage(newImageUri)
++                    )
++                } else {
++                    product
++                }
++
++                repository.updateProduct(finalProduct)
+ 
+                 _uiState.value = _uiState.value.copy(
+                     products = repository.getProducts(),
++                    isSaving = false,
+                     message = "Perubahan berhasil disimpan"
+                 )
++                onResult(true)
+             } catch (e: Exception) {
+                 _uiState.value = _uiState.value.copy(
+-                    message = "Gagal memperbarui produk"
++                    isSaving = false,
++                    message = "Gagal memperbarui produk: ${e.message.orEmpty()}"
+                 )
++                onResult(false)
+             }
+         }
+     }

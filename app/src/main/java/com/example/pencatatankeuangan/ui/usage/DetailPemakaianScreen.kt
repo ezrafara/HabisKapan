@@ -207,7 +207,7 @@ fun DetailPemakaianScreen(
                     enabled = !isSaving,
                     modifier = Modifier
                         .weight(1f)
-                        .height(48.dp),
+                        .height(52.dp),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Icon(
@@ -225,7 +225,7 @@ fun DetailPemakaianScreen(
                     enabled = !isSaving,
                     modifier = Modifier
                         .weight(1f)
-                        .height(48.dp),
+                        .height(52.dp),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Icon(

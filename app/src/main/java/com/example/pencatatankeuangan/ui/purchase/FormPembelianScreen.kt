@@ -113,7 +113,7 @@ fun FormPembelianScreen(
                         .fillMaxWidth()
                         .padding(horizontal = 18.dp, vertical = 12.dp)
                         .height(52.dp),
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = BluePrimary
                     )

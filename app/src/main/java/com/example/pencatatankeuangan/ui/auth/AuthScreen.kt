@@ -37,6 +37,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.pencatatankeuangan.ui.theme.AppDialog
 
 // ==========================================
 // WARNA APLIKASI
@@ -55,7 +56,8 @@ private val AuthRed = Color(0xFFE52D36)
 private enum class AuthPage {
     WELCOME,
     LOGIN,
-    REGISTER
+    REGISTER,
+    FORGOT
 }
 
 // ==========================================
@@ -69,6 +71,8 @@ fun AuthScreen(
     var currentPage by rememberSaveable {
         mutableStateOf(AuthPage.WELCOME.name)
     }
+
+    var forgotEmail by rememberSaveable { mutableStateOf("") }
 
     val context = LocalContext.current
 
@@ -100,6 +104,23 @@ fun AuthScreen(
                     currentPage = AuthPage.REGISTER.name
                 },
                 onLoginSuccess = onLoginSuccess,
+                onForgotPassword = { email ->
+                    forgotEmail = email
+                    currentPage = AuthPage.FORGOT.name
+                },
+                authRepository = authRepository
+            )
+        }
+
+        AuthPage.FORGOT.name -> {
+            ForgotPasswordScreen(
+                initialEmail = forgotEmail,
+                onBack = {
+                    currentPage = AuthPage.LOGIN.name
+                },
+                onDone = {
+                    currentPage = AuthPage.LOGIN.name
+                },
                 authRepository = authRepository
             )
         }
@@ -292,12 +313,12 @@ private fun LoginScreen(
     onBack: () -> Unit,
     onRegister: () -> Unit,
     onLoginSuccess: () -> Unit,
+    onForgotPassword: (String) -> Unit,
     authRepository: SupabaseAuthRepository
 ) {
     var email by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
     var showPassword by rememberSaveable { mutableStateOf(false) }
-    var showForgotDialog by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
 
@@ -396,7 +417,7 @@ private fun LoginScreen(
             modifier = Modifier
                 .align(Alignment.End)
                 .clickable {
-                    showForgotDialog = true
+                    onForgotPassword(email.trim())
                 }
         )
 
@@ -484,33 +505,6 @@ private fun LoginScreen(
         }
 
         Spacer(Modifier.height(14.dp))
-    }
-
-    if (showForgotDialog) {
-        AlertDialog(
-            onDismissRequest = {
-                showForgotDialog = false
-            },
-            title = {
-                Text("Lupa Kata Sandi?")
-            },
-            text = {
-                Text(
-                    "Fitur pemulihan kata sandi akan kita hubungkan " +
-                            "setelah proses login dan registrasi selesai."
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showForgotDialog = false
-                    }
-                ) {
-                    Text("Mengerti")
-                }
-            },
-            containerColor = Color.White
-        )
     }
 }
 
@@ -695,25 +689,235 @@ private fun RegisterScreen(
     }
 
     if (showSuccessDialog) {
-        AlertDialog(
-            onDismissRequest = {},
-            title = {
-                Text("Registrasi Berhasil")
+        AppDialog(
+            title = "Registrasi Berhasil",
+            message = successMessage,
+            icon = Icons.Default.CheckCircle,
+            confirmText = "Ke Login",
+            dismissText = null,
+            dismissOnOutside = false,
+            onConfirm = {
+                showSuccessDialog = false
+                onRegisterSuccess()
             },
-            text = {
-                Text(successMessage)
+            onDismiss = {}
+        )
+    }
+}
+
+
+// ==========================================
+// LUPA KATA SANDI
+// ==========================================
+
+@Composable
+private fun ForgotPasswordScreen(
+    initialEmail: String,
+    onBack: () -> Unit,
+    onDone: () -> Unit,
+    authRepository: SupabaseAuthRepository
+) {
+    var email by rememberSaveable { mutableStateOf(initialEmail) }
+    var newPassword by rememberSaveable { mutableStateOf("") }
+    var confirmPassword by rememberSaveable { mutableStateOf("") }
+    var showPassword by rememberSaveable { mutableStateOf(false) }
+
+    var error by remember { mutableStateOf("") }
+    var isLoading by remember { mutableStateOf(false) }
+    var showSuccess by remember { mutableStateOf(false) }
+    var successMessage by remember { mutableStateOf("") }
+
+    val scope = rememberCoroutineScope()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.White)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 22.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        AuthTopBar(onBack = onBack)
+
+        Spacer(Modifier.height(10.dp))
+
+        Text(
+            "Lupa Kata Sandi?",
+            color = AuthNavy,
+            fontSize = 25.sp,
+            fontWeight = FontWeight.Bold
+        )
+
+        Text(
+            "Masukkan email akunmu, lalu buat kata sandi baru.",
+            color = AuthMuted,
+            fontSize = 12.sp
+        )
+
+        Spacer(Modifier.height(8.dp))
+
+        AuthLabel("Alamat email", true)
+
+        OutlinedTextField(
+            value = email,
+            onValueChange = {
+                email = it
+                error = ""
             },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showSuccessDialog = false
-                        onRegisterSuccess()
-                    }
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = {
+                Text("nama@email.com", color = AuthMuted)
+            },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Email
+            ),
+            shape = RoundedCornerShape(12.dp),
+            colors = authInputColors()
+        )
+
+        AuthLabel("Kata sandi baru", true)
+
+        OutlinedTextField(
+            value = newPassword,
+            onValueChange = {
+                newPassword = it
+                error = ""
+            },
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = {
+                Text("Minimal 8 karakter", color = AuthMuted)
+            },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Password
+            ),
+            visualTransformation = if (showPassword) {
+                VisualTransformation.None
+            } else {
+                PasswordVisualTransformation()
+            },
+            trailingIcon = {
+                IconButton(
+                    onClick = { showPassword = !showPassword }
                 ) {
-                    Text("Ke Login")
+                    Icon(
+                        if (showPassword) Icons.Default.VisibilityOff
+                        else Icons.Default.Visibility,
+                        contentDescription = "Lihat kata sandi",
+                        tint = AuthMuted
+                    )
                 }
             },
-            containerColor = Color.White
+            shape = RoundedCornerShape(12.dp),
+            colors = authInputColors()
+        )
+
+        AuthLabel("Konfirmasi kata sandi baru", true)
+
+        OutlinedTextField(
+            value = confirmPassword,
+            onValueChange = {
+                confirmPassword = it
+                error = ""
+            },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Password
+            ),
+            visualTransformation = if (showPassword) {
+                VisualTransformation.None
+            } else {
+                PasswordVisualTransformation()
+            },
+            shape = RoundedCornerShape(12.dp),
+            colors = authInputColors()
+        )
+
+        if (error.isNotBlank()) {
+            Text(error, color = AuthRed, fontSize = 12.sp)
+        }
+
+        Button(
+            onClick = {
+                when {
+                    email.isBlank() -> {
+                        error = "Alamat email wajib diisi."
+                    }
+
+                    !Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches() -> {
+                        error = "Format email tidak valid."
+                    }
+
+                    newPassword.length < 8 -> {
+                        error = "Kata sandi minimal 8 karakter."
+                    }
+
+                    !(newPassword.any { it.isLetter() } &&
+                            newPassword.any { it.isDigit() }) -> {
+                        error = "Gunakan kombinasi huruf dan angka."
+                    }
+
+                    newPassword != confirmPassword -> {
+                        error = "Konfirmasi kata sandi tidak sama."
+                    }
+
+                    else -> {
+                        scope.launch {
+                            isLoading = true
+                            error = ""
+                            val result = authRepository.resetPassword(
+                                email = email,
+                                newPassword = newPassword
+                            )
+                            isLoading = false
+                            if (result.success) {
+                                successMessage = result.message
+                                showSuccess = true
+                            } else {
+                                error = result.message
+                            }
+                        }
+                    }
+                }
+            },
+            enabled = !isLoading,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = AuthBlue
+            ),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(22.dp),
+                    color = Color.White,
+                    strokeWidth = 2.dp
+                )
+            } else {
+                Text("Ubah Kata Sandi", fontWeight = FontWeight.Bold)
+            }
+        }
+
+        Spacer(Modifier.height(14.dp))
+    }
+
+    if (showSuccess) {
+        AppDialog(
+            title = "Kata Sandi Diubah",
+            message = successMessage,
+            icon = Icons.Default.CheckCircle,
+            confirmText = "Ke Login",
+            dismissText = null,
+            dismissOnOutside = false,
+            onConfirm = {
+                showSuccess = false
+                onDone()
+            },
+            onDismiss = {}
         )
     }
 }
